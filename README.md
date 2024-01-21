@@ -1,4 +1,4 @@
-# Assistant Manager Builder Mark 0.0.1
+# Assistant Conversation Manager Mark 0.0.1
 
 jrw@mit.edu (email me if you find issues)
 Thanks to following for their tools
@@ -9,6 +9,7 @@ Thanks to following for their tools
 
 ## Reference btg5679/javascript-openai-web-crawler
 
+Add Write and Critic conversation capability
 We are using GitHub Codespaces to develop this. So when you fork you may need to change the .devcontainer/devcontainer.json to point to your fork. We are using NPM and Node so run "npm install" to install all the dependencies. In the future you may need to modify the libraries to use the latest eg puppeteer
 Similarly the openai API is changing fairly rapidly so monitor any deprecations of models
 For example a number were deprecated on Jan 4, 2024

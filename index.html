@@ -28,6 +28,7 @@
     <script>
       let data = {
         assistant_id: "",
+        assistant_name: "",
         file_id: "",
         thread_id: "",
         message: "",
@@ -38,6 +39,7 @@
 
       function get_data_from_elements() {
         data.assistant_id = document.getElementById("assistant_id").value;
+        data.assistant_name = document.getElementById("assistant_name").value;
         data.file_id = document.getElementById("file_id").value;
         data.thread_id = document.getElementById("thread_id").value;
         data.message = document.getElementById("message").value;
@@ -46,6 +48,7 @@
       }
       function write_data_to_elements(data) {
         document.getElementById("assistant_id").value = data.assistant_id;
+        document.getElementById("assistant_name").value = data.assistant_name;
         document.getElementById("file_id").value = data.file_id;
         document.getElementById("thread_id").value = data.thread_id;
         document.getElementById("message").value = data.message;
@@ -69,6 +72,7 @@
           body: JSON.stringify(data),
           mode: "cors",
         });
+        console.log(data);
         let res = await response.json();
         console.log(`In UI response: ${JSON.stringify(res)}`);
         await parse_response(route, res);
@@ -112,6 +116,7 @@
         >
           Create
         </button>
+        <input type="text" id="assistant_name" name="assistant_name" />
         <button
           class="btn btn-primary mr-1"
           type="submit"
@@ -133,8 +138,7 @@
         >
           Delete
         </button>
-        <input type="text" id="assistant_id" name="assistant_id" />
-
+        <input type="text" id="assistant_id" name="assistant_name" />
         <label for="file_id" class="label-container">File Load:</label>
         <button
           class="btn btn-primary mr-1"
@@ -233,7 +237,14 @@
         >
           Add Tools
         </button>
-
+        <label for="conversation" class="label-container">Conversation:</label>
+        <button
+          class="btn btn-primary mr-1"
+          type="submit"
+          onclick="sendRequest('loop')"
+        >
+          Conversation
+        </button>
         <div>
           <label for="response">Response from GPT:</label>
         </div>

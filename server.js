@@ -10,7 +10,7 @@ const fileURLToPath = require("url");
 const bodyParser = require('body-parser');
 
 
-
+let assistants = {}
 let tools = [{ type: "code_interpreter" }, { type: "retrieval" }]
 //const get_weather = require('./functions/get_weather.js');
 const { get } = require('http');
@@ -27,7 +27,7 @@ const openai = new OpenAI({
 
 
 // Define global variables focus to keep track of the assistant, file, thread and run
-let focus = { assistant_id: "", file_id: "", thread_id: "", message: "", func_name: "", run_id: "", status: "" };
+let focus = { assistant_id: "", assistant_name:"", file_id: "", thread_id: "", message: "", func_name: "", run_id: "", status: "" };
 
 // Middleware to parse JSON payloads in POST requests
 app.use(express.json());
@@ -41,22 +41,25 @@ app.get('/', (req, res) => {
 
 // Define routes
 app.post('/create_assistant', async (req, res) => {
+    let name = req.body.assistant_name;
     tools = [{ type: "code_interpreter" }, { type: "retrieval" }]
     try {
         let response = await openai.beta.assistants.create({
-            name: "Test Assistant",
+            name: name,
             instructions:
-                "You are a personal share price tutor. Write and run code to answer financial questions.",
+                `You are a ${name} assistant. You can help with ${name} fiction novels:\n\n`,
             tools: tools,
             model: "gpt-4-1106-preview",
         });
 
         // Log the first greeting
         console.log(
-            "\nHello there, I'm your personal share price tutor. Ask some questions.\n"
+            `Hi, I'm a ${response.name} Assistant \n`
         );
-        focus.assistant_id = await response.id;
-        message = "Assistant created with id: " + response.id;
+        focus.assistant_id = response.id;
+        focus.assistant_name = response.name;
+        assistants[response.name] = response;
+        message = `${response.name} Assistant created with id: ${response.id}`;
         res.status(200).json({ message: message, focus: focus });
     }
     catch (error) {
@@ -92,6 +95,10 @@ function extract_assistant_id(data) {
     if (data.length > 0) {
         assistant_id = data[0].id;
         tools = data[0].tools
+        // loop over assistants and extract all the assistants into a dictionary
+        for (let assistant of data) {
+            assistants[assistant.name] = assistant;
+        }
     }
 
     console.log("got assistant_id: " + assistant_id);
@@ -356,7 +363,7 @@ app.post('/create_message', async (req, res) => {
                 role: "user",
                 content: prompt,
             })
-        message = await response;;
+        message = await response;
         console.log("create message response: " + JSON.stringify(response));
         res.status(200).json({ message: message, focus: focus });
     }
@@ -404,18 +411,51 @@ app.post('/get_messages', async (req, res) => {
     }
 });
 //
+// this puts a message onto a thread and then runs the assistant and polls for status
+async function runAssistant(assistant_id,thread_id,user_instructions){
+    try {
+        await openai.beta.threads.messages.create(thread_id,
+            {
+                role: "user",
+                content: user_instructions,
+            })
+        let run = await openai.beta.threads.runs.create(thread_id, {
+            assistant_id: assistant_id
+        })
+        return  messages = await get_run_status(thread_id, run.id)
+    }
+    catch (error) {
+        console.log(error);
+        return error;
+    }
+    // Poll the run until it has completed  
+}
+//
 // sort messages by assistant_ID on active thread
 //
-app.post('/sort_messages', async (req, res) => {
-    let thread_id = req.body.thread_id;
-    let run_id = req.body.run_id;
-    console.log("sort_messages: on thread_id: " + thread_id + " run_id: " + run_id);
+
+app.post('/loop', async (req, res) => {
+    let thread_id = focus.thread_id;
+    let writer = assistants.Writer;
+    let critic = assistants.Critic;
+    let messages = [];
     try {
-        let messages = await get_run_status(thread_id, run_id);
-        console.log("PRINTING MESSAGES: ");
-        console.log(messages.data[0].content[0].text.value)
-        focus.status = "completed";
-        res.status(200).json({ message: messages.data[0].content[0].text.value, focus: focus });
+        // Run the Writer Assistant to create a first draft                      
+        let message =  await runAssistant(writer.id,thread_id,"Write a paragraph about a king and his clothes")
+        let text = message.data[0].content[0].text.value
+        messages.push(text)
+        console.log("Writer: "+ text);
+        // Run the Critic Assistant to provide feedback 
+        message = await runAssistant(critic.id,thread_id,`Provide constructive feedback to what the Writer assistant has written`)
+        text = message.data[0].content[0].text.value
+        messages.push(text)
+        console.log("Critic: "+ text);        
+        // Have the Writer Assistant rewrite the first chapter based on the feedback from the Critic        
+        message =  await runAssistant(writer.id,thread_id,`Using the feedback from the Critic Assistant rewrite the first chapter`)
+        text = message.data[0].content[0].text.value
+        messages.push(text)
+        console.log("Writer: "+ text);
+        res.status(200).json({ message: JSON.stringify(messages), focus: focus })
     }
     catch (error) {
         console.log(error);
