@@ -373,27 +373,7 @@ app.post('/create_message', async (req, res) => {
     }
 });
 
-async function get_run_status(thread_id, run_id) {
-    try {
-        let intervalId = setInterval(async () => {
-            let response = await openai.beta.threads.runs.retrieve(thread_id, run_id)
-            focus.status = await response.status;
-            console.log("run status response: " + JSON.stringify(response));
-            if (focus.status === "completed") {
-                clearInterval(intervalId); // Stop polling when status is completed
-            }
-            await console.log("run status response: " + response.status)
-        }, 500); // Poll every 1 second
-        // now get the messages
-        let messages = await openai.beta.threads.messages.list(thread_id)
-        console.log("get_run_status messages: " + JSON.stringify(messages.data));
-        return messages;
-    }
-    catch (error) {
-        console.log(error);
-        return error;
-    }
-}
+
 app.post('/get_messages', async (req, res) => {
     let thread_id = req.body.thread_id;
     let run_id = req.body.run_id;
@@ -411,7 +391,7 @@ app.post('/get_messages', async (req, res) => {
     }
 });
 //
-// this puts a message onto a thread and then runs the assistant and polls for status
+// this puts a message onto a thread and then runs the assistant 
 async function runAssistant(assistant_id,thread_id,user_instructions){
     try {
         await openai.beta.threads.messages.create(thread_id,
@@ -422,7 +402,7 @@ async function runAssistant(assistant_id,thread_id,user_instructions){
         let run = await openai.beta.threads.runs.create(thread_id, {
             assistant_id: assistant_id
         })
-        return  messages = await get_run_status(thread_id, run.id)
+        focus.run_id = run.id;
     }
     catch (error) {
         console.log(error);
@@ -430,9 +410,30 @@ async function runAssistant(assistant_id,thread_id,user_instructions){
     }
     // Poll the run until it has completed  
 }
+async function get_run_status(thread_id, run_id, messages) {
+    try {
+        let runStatus = await openai.beta.threads.runs.retrieve(thread_id, run_id);
+        while (runStatus.status !== 'completed') {
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 1 second
+            runStatus = await openai.beta.threads.runs.retrieve(thread_id, run_id);
+        }
+        let message = await openai.beta.threads.messages.list(thread_id)
+        addLastMessagetoArray(thread_id,message, messages)
+    }
+    catch (error) {
+        console.log(error);
+        return error; 
+    }
+}
 //
-// sort messages by assistant_ID on active thread
+// add all messages to array
 //
+function addLastMessagetoArray(thread_id,message, messages){
+    messages.push(message.data[0].content[0].text.value)
+    console.log("PRINTING MESSAGES: ");
+    console.log(message.data[0].content[0].text.value)
+}
+
 
 app.post('/loop', async (req, res) => {
     let thread_id = focus.thread_id;
@@ -441,21 +442,21 @@ app.post('/loop', async (req, res) => {
     let messages = [];
     try {
         // Run the Writer Assistant to create a first draft                      
-        let message =  await runAssistant(writer.id,thread_id,"Write a paragraph about a king and his clothes")
-        let text = message.data[0].content[0].text.value
-        messages.push(text)
-        console.log("Writer: "+ text);
+        await runAssistant(writer.id,thread_id,"Write a paragraph about a king and his gaudy clothes")
+        await get_run_status(thread_id, focus.run_id,messages)
+  
         // Run the Critic Assistant to provide feedback 
-        message = await runAssistant(critic.id,thread_id,`Provide constructive feedback to what the Writer assistant has written`)
-        text = message.data[0].content[0].text.value
-        messages.push(text)
-        console.log("Critic: "+ text);        
+        await runAssistant(critic.id,thread_id,`Provide constructive feedback to what the Writer assistant has written`)
+        await get_run_status(thread_id, focus.run_id, messages)
+        
         // Have the Writer Assistant rewrite the first chapter based on the feedback from the Critic        
-        message =  await runAssistant(writer.id,thread_id,`Using the feedback from the Critic Assistant rewrite the first chapter`)
-        text = message.data[0].content[0].text.value
-        messages.push(text)
-        console.log("Writer: "+ text);
-        res.status(200).json({ message: JSON.stringify(messages), focus: focus })
+        await runAssistant(writer.id,thread_id,`Using the feedback from the Critic Assistant rewrite the first chapter given here: ${messages[0]}`)
+        await get_run_status(thread_id, focus.run_id, messages)
+
+        // create one message with all the messages input to the thread
+        let textMessage = messages.join("\n")
+
+        res.status(200).json({ message: JSON.stringify(textMessage), focus: focus })
     }
     catch (error) {
         console.log(error);
