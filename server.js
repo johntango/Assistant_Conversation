@@ -25,9 +25,27 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
+write_focus_to_file = function (focus) {
+    fs.writeFile('focus.json', JSON.stringify(focus), function (err) {
+        if (err) throw err;
+        console.log('Saved!');
+    });
+}
+// make sure focus is defined 
+
+
 
 // Define global variables focus to keep track of the assistant, file, thread and run
 let focus = { assistant_id: "", assistant_name:"", file_id: "", thread_id: "", message: "", func_name: "", run_id: "", status: "" };
+
+read_focus_from_file = function () {
+    fs.readFile('focus.json', (err, data) => {
+        if (err) throw err;
+        focus = JSON.parse(data);
+        console.log("focus: " + JSON.stringify(focus));
+    });
+}
+
 
 // Middleware to parse JSON payloads in POST requests
 app.use(express.json());
@@ -58,6 +76,7 @@ app.post('/create_assistant', async (req, res) => {
         );
         focus.assistant_id = response.id;
         focus.assistant_name = response.name;
+        write_focus_to_file(focus);
         assistants[response.name] = response;
         message = `${response.name} Assistant created with id: ${response.id}`;
         res.status(200).json({ message: message, focus: focus });
@@ -241,6 +260,7 @@ app.post('/create_thread', async (req, res) => {
         message = response;
         console.log("create_thread response: " + JSON.stringify(response));
         focus.thread_id = response.id;
+        write_focus_to_file(focus);
         res.status(200).json({ message: message, focus: focus });
     }
     catch (error) {
