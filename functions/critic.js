@@ -11,8 +11,12 @@ const execute = async (name, instructions) => {
     const openai = new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
     });
+
+    // get a new thread to operate on
     let thread = await openai.beta.threads.create()
     let thread_id = thread.id;
+    
+    // get critic assistant id
     const response = await openai.beta.assistants.list({
         order: "desc",
         limit: 10,
@@ -27,6 +31,7 @@ const execute = async (name, instructions) => {
         }
     }
 
+
     async function runAssistant(assistant_id, thread_id, user_instructions){
         try {
             await openai.beta.threads.messages.create(thread_id,
@@ -38,59 +43,59 @@ const execute = async (name, instructions) => {
                 assistant_id: assistant_id
             })
             run_id = run.id;
-            await get_run_status(thread_id, run_id);
+            get_run_status(thread_id, run_id, messages);
             let message = await openai.beta.threads.messages.list(thread_id)
-            addLastMessagetoArray(message, messages)
+            await addLastMessagetoArray(message, messages)
         }
         catch (error) {
             console.log(error);
             return error;
         }
     }
-    async function get_run_status(thread_id, run_id) {
+    async function get_run_status(thread_id, run_id, messages) {
         try {
             let runStatus = await openai.beta.threads.runs.retrieve(thread_id, run_id);
             while (runStatus.status !== 'completed') {
                 await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 1 second
                 runStatus = await openai.beta.threads.runs.retrieve(thread_id, run_id);
             }
-            // await openai.beta.threads.del(thread_id)
-            return;
+
+            //await openai.beta.threads.del(thread_id)
         }
         catch (error) {
             console.log(error);
             return error; 
         }
     }
-    function addLastMessagetoArray(message, messages){
+    async function addLastMessagetoArray(message, messages){
         messages.push(message.data[0].content[0].text.value)
         console.log("PRINTING MESSAGES: ");
         console.log(message.data[0].content[0].text.value)
-        return;
     }
     
     await runAssistant(assistant_id, thread_id, instructions);
-  
+    // delete the thread
+   
     return messages;
 }
 
 const details = {
-    name: "writer",
-    description: "This is a fiction writer that can write stories based on instructions",
+    name: "critic",
+    description: "This is a critic of stories passed to it",
     parameters: {
       type: "object",
       properties: {
         name: {
           type: "string",
-          description: "The name of the assistant to use. eg writer",
+          description: "The name of the assistant to use. eg critic",
         },
         instructions: {
           type: "string",
-          description: "The instructions to the assistant. eg Write a story about a dog",
+          description: "The story and the instructions for the critic."
         },
       },
       required: ["name", "instructions"],
     },
-    example: "Get Assistant called Writer and run it with instructions 'Write a story about a dog'",
+    example: "Write a critque of the following story: 'story...'",
 };
 module.exports = { execute, details };

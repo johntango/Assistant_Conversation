@@ -65,7 +65,7 @@ app.post('/create_assistant', async (req, res) => {
         let response = await openai.beta.assistants.create({
             name: name,
             instructions:
-                `You are a ${name} assistant. You can help with ${name} fiction novels:\n\n`,
+                `You are a ${name} assistant. You develop a multi-step strategy to solve a specific problem by calling the tools provided in a given order one at a time. You output the function calls into a JSON document called PLAN. You will start by calling the first tool. Once the tool has been called and returns a response it should be removed from the PLAN, the PLAN updated so the next function is provide in its instructions the output from the previous tool, and the run terminated as complete. Every time you are called you will read the plan to determine which function to call next along with its instructions.  Once no functions are left to call you will return the message 'Strategy Completed'::\n\n`,
             tools: tools,
             model: "gpt-4-1106-preview",
         });
@@ -311,6 +311,12 @@ app.post('/run_status', async (req, res) => {
         let response = await openai.beta.threads.runs.retrieve(thread_id, run_id)
         message = response;
         focus.status = response.status;
+        let tries = 0;
+        while (response.status == 'in_progress' && tries < 10) {
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for 1 second
+            response = await openai.beta.threads.runs.retrieve(thread_id, run_id);
+            tries += 1;
+        }
         if (response.status === "requires_action") {
 
             console.log("run status response: " + JSON.stringify(message));
@@ -344,12 +350,14 @@ app.post('/run_status', async (req, res) => {
                 }
                 continue;
             }
-            // now continue polling for status 
+
         }
+        
         if (response.status == "completed" || response.status == "failed") {
             let message = "Completed run with status: " + response.status;
             res.status(200).json({ message: message, focus: focus });
         }
+
     }
     catch (error) {
         console.log(error);
