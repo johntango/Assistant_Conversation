@@ -65,7 +65,7 @@ app.post('/create_assistant', async (req, res) => {
         let response = await openai.beta.assistants.create({
             name: name,
             instructions:
-                `You are a ${name} assistant. You develop a multi-step strategy to solve a specific problem by calling the tools provided in a given order one at a time. You output the function calls into a JSON document called PLAN. You will start by calling the first tool. Once the tool has been called and returns a response it should be removed from the PLAN, the PLAN updated so the next function is provide in its instructions the output from the previous tool, and the run terminated as complete. Every time you are called you will read the plan to determine which function to call next along with its instructions.  Once no functions are left to call you will return the message 'Strategy Completed'::\n\n`,
+                `You are a ${name} assistant. You develop a multi-step strategy to solve a specific problem by calling the tools provided in a given order one at a time. You output the tools calls into a JSON document called PLAN. You will start by calling the first tool. Once the tool has been called and returns a response it should be removed from the PLAN, the PLAN updated so the next tool is provide in its input instructions the output from the previous tool, and the run terminated as complete. Every time you are called you will read the plan to determine which function to call next along with its instructions.  Once no tools are left to call you will return the message 'Strategy Completed'::\n\n`,
             tools: tools,
             model: "gpt-4-1106-preview",
         });
