@@ -8,6 +8,7 @@ const axios = require('axios');
 const OpenAI = require('openai');
 const fileURLToPath = require("url");
 const bodyParser = require('body-parser');
+const sqlite3 = require('sqlite3');
 
 
 let assistants = {}
@@ -25,15 +26,10 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY,
 });
 
-write_focus_to_file = function (focus) {
-    fs.writeFile('focus.json', JSON.stringify(focus), function (err) {
-        if (err) throw err;
-        console.log('Saved!');
-    });
-}
-// make sure focus is defined 
-
-
+// connect to db and get cursor
+// Example usage:
+const dbPath = 'data/prompts.db';
+const db = getConnection(dbPath);
 
 // Define global variables focus to keep track of the assistant, file, thread and run
 let focus = { assistant_id: "", assistant_name:"", file_id: "", thread_id: "", message: "", func_name: "", run_id: "", status: "" };
@@ -552,6 +548,44 @@ async function getFunctions() {
     return openAIFunctions;
 }
 
+app.post('/table', (req, res) => {
+    const sql = "SELECT * FROM prompts";
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            throw err;
+        }
+        rows.forEach((row) => {
+            console.log(row);
+        });
+        res.status(200).json({ message: JSON.stringify(rows), focus: focus });
+        //res.render('table', { rows });
+    });
+  });
+
+  
+  //this is where we write to the database
+  function insertIntoTable(db, data) {
+    const sql = `
+        INSERT INTO prompts (topic, sentiment, style, tone, language, prompt, response) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+    db.run(sql, [data.topic, data.sentiment, data.style, data.tone, data.language, data.prompt, data.response], function(err) {
+        if (err) {
+            return console.error("Error inserting data:", err.message);
+        }
+        console.log(`Row inserted with ID: ${this.lastID}`);
+    });
+  }
+  
+  function getConnection(dbPath) {
+    return new sqlite3.Database(dbPath, (err) => {
+        if (err) {
+            console.error("Error connecting to the database:", err.message);
+        } else {
+            console.log("Connected to the SQLite database.");
+        }
+    });
+  }
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
 });
